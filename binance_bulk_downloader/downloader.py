@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from xml.etree import ElementTree
 from zipfile import BadZipfile
 from typing import Optional, List, Union
-
+from datetime import datetime
 # import third-party libraries
 import requests
 from rich.console import Console
@@ -126,6 +126,7 @@ class BinanceBulkDownloader:
         asset="um",
         timeperiod_per_file="daily",
         symbols: Optional[Union[str, List[str]]] = None,
+        start_date: Optional[str] = None, 
     ) -> None:
         """
         Initialize BinanceBulkDownloader
@@ -229,6 +230,18 @@ class BinanceBulkDownloader:
                         "{http://s3.amazonaws.com/doc/2006-03-01/}Key"
                     ).text
                     if key.endswith(".zip"):
+
+                        # Filter by date
+                        try:
+                            file_date_str = key.split('-')[-1].replace('.zip', '')
+                            file_date = datetime.strptime(file_date_str, '%Y-%m-%d')
+                            if self.start_date and file_date < self.start_date:
+                                continue  
+                            else:
+                                print(f"Skipping {file_date_str}.  Earlier than start_date")
+                        except ValueError:
+                            continue  # Skip files with invalid date formats
+                    
                         # Filter by symbols if multiple symbols are specified
                         if isinstance(self._symbols, list) and len(self._symbols) > 1:
                             if any(symbol.upper() in key for symbol in self._symbols):
