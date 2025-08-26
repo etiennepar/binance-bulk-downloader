@@ -145,6 +145,7 @@ class BinanceBulkDownloader:
         self._asset = asset
         self._timeperiod_per_file = timeperiod_per_file
         self._symbols = [symbols] if isinstance(symbols, str) else symbols
+        self._start_date = datetime.strptime(start_date, '%Y-%m-%d') 
         self.marker = None
         self.is_truncated = True
         self.downloaded_list: list[str] = []
@@ -206,6 +207,7 @@ class BinanceBulkDownloader:
         :param prefix: s3 bucket prefix
         :return: list of files
         """
+        
         files = []
         marker = None
         is_truncated = True
@@ -230,18 +232,6 @@ class BinanceBulkDownloader:
                         "{http://s3.amazonaws.com/doc/2006-03-01/}Key"
                     ).text
                     if key.endswith(".zip"):
-
-                        # Filter by date
-                        try:
-                            file_date_str = key.split('-')[-1].replace('.zip', '')
-                            file_date = datetime.strptime(file_date_str, '%Y-%m-%d')
-                            if self.start_date and file_date < self.start_date:
-                                continue  
-                            else:
-                                print(f"Skipping {file_date_str}.  Earlier than start_date")
-                        except ValueError:
-                            continue  # Skip files with invalid date formats
-                    
                         # Filter by symbols if multiple symbols are specified
                         if isinstance(self._symbols, list) and len(self._symbols) > 1:
                             if any(symbol.upper() in key for symbol in self._symbols):
@@ -276,7 +266,18 @@ class BinanceBulkDownloader:
                     status_text.append(f"\n{recent_file}")
             live.update(Panel(status_text, style="green"))
             return files
+    
+    def _adjust_file_list_for_start_date(self, file_list):
 
+        truncated_list = []
+        for file_path in file_list:
+            filename = file_path.split('/')[-1]
+            date_str = filename.split('-trades-')[1].split('.zip')[0]
+            file_date = datetime.strptime(date_str, '%Y-%m-%d')
+            if file_date >= self._start_date:
+                truncated_list.append(file_path)
+        return truncated_list
+        
     def _make_asset_type(self) -> str:
         """
         Convert asset to asset type
@@ -448,6 +449,8 @@ class BinanceBulkDownloader:
             self._symbols = original_symbols  # Restore original symbols
         else:
             file_list = self._get_file_list_from_s3_bucket(self._build_prefix())
+        
+        file_list = self._adjust_file_list_for_start_date(file_list)
 
         # Filter by data frequency only if not already filtered by prefix
         if (
