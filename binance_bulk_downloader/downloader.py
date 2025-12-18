@@ -268,35 +268,36 @@ class BinanceBulkDownloader:
             return files
     
     def _adjust_file_list_for_start_date(self, file_list):
-        truncated = []
+        if self._start_date is None:
+            return file_list
 
-        for file_path in file_list:
-            filename = os.path.basename(file_path)
+        out = []
 
-            if self._data_type in ("trades", "aggTrades"):
-                # SYMBOL-trades-YYYY-MM-DD.zip
-                date_str = filename.rsplit("-", 1)[1].replace(".zip", "")
+        for p in file_list:
+            filename = os.path.basename(p)
 
-            elif self._data_type in (
-                "klines",
-                "markPriceKlines",
-                "indexPriceKlines",
-                "premiumIndexKlines",
-            ):
-                # SYMBOL-INTERVAL-YYYY-MM-DD.zip
-                date_str = filename.rsplit("-", 1)[1].replace(".zip", "")
+            try:
+                if self._timeperiod_per_file == "daily":
+                    # ...-YYYY-MM-DD.zip
+                    date_str = filename.rsplit("-", 1)[1].replace(".zip", "")
+                    file_date = datetime.strptime(date_str, "%Y-%m-%d")
 
-            else:
-                # fallback: do not filter
-                truncated.append(file_path)
+                elif self._timeperiod_per_file == "monthly":
+                    # ...-YYYY-MM.zip → treat as first day of month
+                    date_str = filename.rsplit("-", 1)[1].replace(".zip", "")
+                    file_date = datetime.strptime(date_str, "%Y-%m")
+
+                else:
+                    continue
+
+            except (IndexError, ValueError):
+                # Skip malformed / unexpected filenames
                 continue
 
-            file_date = datetime.strptime(date_str, "%Y-%m-%d")
-
             if file_date >= self._start_date:
-                truncated.append(file_path)
+                out.append(p)
 
-        return truncated
+        return out
 
         
     def _make_asset_type(self) -> str:
