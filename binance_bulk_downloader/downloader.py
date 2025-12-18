@@ -268,15 +268,36 @@ class BinanceBulkDownloader:
             return files
     
     def _adjust_file_list_for_start_date(self, file_list):
+        truncated = []
 
-        truncated_list = []
         for file_path in file_list:
-            filename = file_path.split('/')[-1]
-            date_str = filename.split('-trades-')[1].split('.zip')[0]
-            file_date = datetime.strptime(date_str, '%Y-%m-%d')
+            filename = os.path.basename(file_path)
+
+            if self._data_type in ("trades", "aggTrades"):
+                # SYMBOL-trades-YYYY-MM-DD.zip
+                date_str = filename.rsplit("-", 1)[1].replace(".zip", "")
+
+            elif self._data_type in (
+                "klines",
+                "markPriceKlines",
+                "indexPriceKlines",
+                "premiumIndexKlines",
+            ):
+                # SYMBOL-INTERVAL-YYYY-MM-DD.zip
+                date_str = filename.rsplit("-", 1)[1].replace(".zip", "")
+
+            else:
+                # fallback: do not filter
+                truncated.append(file_path)
+                continue
+
+            file_date = datetime.strptime(date_str, "%Y-%m-%d")
+
             if file_date >= self._start_date:
-                truncated_list.append(file_path)
-        return truncated_list
+                truncated.append(file_path)
+
+        return truncated
+
         
     def _make_asset_type(self) -> str:
         """
